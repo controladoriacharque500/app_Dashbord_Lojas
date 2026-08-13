@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from database import PALETA_CORES
 from database import buscar_vendas_reais, buscar_estoque_real
 
 # Configuração da Página
@@ -95,65 +96,90 @@ if check_password():
     # -------------------------------------------------------------
     if page == "📊 Vendas & Faturamento":
         st.title("📊 Painel Executivo de Vendas")
-        
-        if df_sales.empty:
-            st.warning("Nenhum dado de vendas encontrado para o período selecionado.")
+
+        df_vendas = buscar_vendas_reais()
+
+        if df_vendas.empty:
+            st.warning("Sem dados de vendas disponíveis no momento.")
         else:
-            # Filtro de Loja
-            lojas_disponiveis = sorted(df_sales["LOJA"].astype(str).unique())
-            lojas_selecionadas = st.multiselect(
-                "Filtrar Lojas para Análise:",
-                options=lojas_disponiveis,
-                default=lojas_disponiveis
-            )
+            # --- FILTROS EXECUTIVOS (LOJAS E DATAS) ---
+            st.markdown("### 🔍 Filtros de Análise")
+            col1, col2, col3 = st.columns([2, 1, 1])
 
-            # Filtrando o DataFrame
-            df_filtered = df_sales[df_sales["LOJA"].astype(str).isin(lojas_selecionadas)]
+            with col1:
+                lojas_disponiveis = df_vendas["LOJA"].unique().tolist()
+                lojas_sel = st.multiselect("Filtrar Lojas:", lojas_disponiveis, default=lojas_disponiveis)
 
-            # KPIs Calculados
-            total_fat = df_filtered["VALOR_TOTAL_VENDIDO"].sum()
-            total_qtd = df_filtered["QTD_VENDIDA_TOTAL"].sum()
-            punit_medio = total_fat / total_qtd if total_qtd > 0 else 0
+            # Filtro por Período/Data
+            df_filtrado = df_vendas[df_vendas["LOJA"].isin(lojas_sel)].copy()
 
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Faturamento Total", f"R$ {total_fat:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-            col2.metric("Volume Total Vendido", f"{total_qtd:,.2f} kg".replace(",", "X").replace(".", ",").replace("X", "."))
-            col3.metric("Preço Médio / kg", f"R$ {punit_medio:.2f}".replace(".", ","))
+            if "DATA" in df_filtrado.columns and not df_filtrado["DATA"].isnull().all():
+                min_date = df_filtrado["DATA"].min().date()
+                max_date = df_filtrado["DATA"].max().date()
 
-            st.divider()
-            
-            c1, c2 = st.columns(2)
-            
-            with c1:
-                st.subheader("🏆 Top Produtos por Loja (Volume em kg)")
+                with col2:
+                    periodo_sel = st.date_input(
+                        "Período das Vendas:",
+                        value=(min_date, max_date),
+                        min_value=min_date,
+                        max_value=max_date
+                    )
                 
-                fig_vol = px.bar(
-                    df_filtered.sort_values(by="QTD_VENDIDA_TOTAL", ascending=True),
-                    x="QTD_VENDIDA_TOTAL", 
-                    y="PRODUTO", 
+                # Aplica o intervalo de datas selecionado
+                if isinstance(periodo_sel, tuple) and len(periodo_sel) == 2:
+                    dt_inicio, dt_fim = periodo_sel
+                    df_filtrado = df_filtrado[
+                        (df_filtrado["DATA"].dt.date >= dt_inicio) & 
+                        (df_filtrado["DATA"].dt.date <= dt_fim)
+                    ]
+
+            # --- CARDS DE RESUMO (KPIs) ---
+            st.markdown("---")
+            kpi1, kpi2, kpi3 = st.columns(3)
+            
+            fat_total = df_filtrado["FATURAMENTO_TOTAL"].sum()
+            vol_total = df_filtrado["QTD_VENDIDA_TOTAL"].sum()
+            preco_medio = fat_total / vol_total if vol_total > 0 else 0
+
+            kpi1.metric("Faturamento Total", f"R$ {fat_total:,.2f}")
+            kpi2.metric("Volume Total Vendido", f"{vol_total:,.2f} kg")
+            kpi3.metric("Preço Médio / kg", f"R$ {preco_medio:,.2f}")
+
+            # --- GRÁFICOS COM CORES PADRONIZADAS ---
+            st.markdown("---")
+            g1, g2 = st.columns(2)
+
+            with g1:
+                st.subheader("🏆 Volume por Loja (kg)")
+                # Agrupa faturamento/volume por produto e loja
+                df_prod = df_filtrado.groupby(["PRODUTO", "LOJA"])["QTD_VENDIDA_TOTAL"].sum().reset_index()
+                df_top = df_prod.sort_values(by="QTD_VENDIDA_TOTAL", ascending=False).head(15)
+
+                fig_bar = px.bar(
+                    df_top,
+                    x="QTD_VENDIDA_TOTAL",
+                    y="PRODUTO",
                     color="LOJA",
-                    barmode="group",
-                    orientation='h',
-                    labels={"QTD_VENDIDA_TOTAL": "Volume (kg)", "PRODUTO": "", "LOJA": "Loja"},
-                    template="plotly_dark"
+                    orientation="h",
+                    color_discrete_map=PALETA_CORES,  # 🎨 Aplica a paleta fixa!
+                    title="Top Produtos por Loja"
                 )
-                fig_vol.update_layout(margin=dict(l=20, r=20, t=30, b=20))
-                st.plotly_chart(fig_vol, use_container_width=True)
+                fig_bar.update_layout(yaxis={'categoryorder':'total ascending'})
+                st.plotly_chart(fig_bar, use_container_width=True)
 
-            with c2:
+            with g2:
                 st.subheader("💰 Faturamento por Loja")
-                
-                df_pie = df_filtered.groupby("LOJA")["VALOR_TOTAL_VENDIDO"].sum().reset_index()
-                fig_fat = px.pie(
+                df_pie = df_filtrado.groupby("LOJA")["FATURAMENTO_TOTAL"].sum().reset_index()
+
+                fig_pie = px.pie(
                     df_pie,
-                    names="LOJA", 
-                    values="VALOR_TOTAL_VENDIDO", 
-                    hole=0.4,
-                    labels={"LOJA": "Loja", "VALOR_TOTAL_VENDIDO": "Faturamento R$"},
-                    template="plotly_dark"
+                    values="FATURAMENTO_TOTAL",
+                    names="LOJA",
+                    color="LOJA",
+                    color_discrete_map=PALETA_CORES,  # 🎨 Aplica a paleta fixa!
+                    hole=0.4
                 )
-                fig_fat.update_layout(margin=dict(l=20, r=20, t=30, b=20))
-                st.plotly_chart(fig_fat, use_container_width=True)
+                st.plotly_chart(fig_pie, use_container_width=True)
 
             st.divider()
             
