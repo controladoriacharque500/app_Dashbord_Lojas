@@ -91,38 +91,94 @@ if check_password():
     df_sales = load_sales_data()
     df_inv = load_inventory_data()
 
-    # -------------------------------------------------------------
+   # -------------------------------------------------------------
     # PÁGINA 1: VENDAS & FATURAMENTO
     # -------------------------------------------------------------
     if page == "📊 Vendas & Faturamento":
         st.title("📊 Painel Executivo de Vendas")
+        
+        # Filtro de Loja no topo do painel
+        lojas_disponiveis = sorted(df_sales["LOJA"].unique())
+        lojas_selecionadas = st.multiselect(
+            "Filtrar Lojas para Análise:",
+            options=lojas_disponiveis,
+            default=lojas_disponiveis
+        )
 
-        total_fat = df_sales["VALOR_TOTAL_VENDIDO"].sum()
-        total_qtd = df_sales["QTD_VENDIDA_TOTAL"].sum()
+        # Filtrando o dataframe com base na seleção
+        df_filtered = df_sales[df_sales["LOJA"].isin(lojas_selecionadas)]
+
+        # KPIs Calculados
+        total_fat = df_filtered["VALOR_TOTAL_VENDIDO"].sum()
+        total_qtd = df_filtered["QTD_VENDIDA_TOTAL"].sum()
         punit_medio = total_fat / total_qtd if total_qtd > 0 else 0
 
         col1, col2, col3 = st.columns(3)
-        col1.metric("Faturamento Total", f"R$ {total_fat:,.2f}")
-        col2.metric("Volume Total Vendido", f"{total_qtd:,.2f} kg")
-        col3.metric("Preço Médio / kg", f"R$ {punit_medio:.2f}")
+        col1.metric("Faturamento Total", f"R$ {total_fat:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        col2.metric("Volume Total Vendido", f"{total_qtd:,.2f} kg".replace(",", "X").replace(".", ",").replace("X", "."))
+        col3.metric("Preço Médio / kg", f"R$ {punit_medio:.2f}".replace(".", ","))
 
         st.divider()
+        
         c1, c2 = st.columns(2)
+        
         with c1:
-            st.subheader("🏆 Top Produtos por Volume (kg)")
+            st.subheader("🏆 Top Produtos por Loja (Volume em kg)")
+            
+            # Gráfico Agrupado por Loja
             fig_vol = px.bar(
-                df_sales.groupby("PRODUTO")["QTD_VENDIDA_TOTAL"].sum().reset_index().sort_values(by="QTD_VENDIDA_TOTAL", ascending=True),
-                x="QTD_VENDIDA_TOTAL", y="PRODUTO", orientation='h', color_discrete_sequence=['#2e7d32']
+                df_filtered.sort_values(by="QTD_VENDIDA_TOTAL", ascending=True),
+                x="QTD_VENDIDA_TOTAL", 
+                y="PRODUTO", 
+                color="LOJA",
+                barmode="group",
+                orientation='h',
+                labels={"QTD_VENDIDA_TOTAL": "Volume (kg)", "PRODUTO": "", "LOJA": "Loja"},
+                template="plotly_dark"
             )
+            fig_vol.update_layout(margin=dict(l=20, r=20, t=30, b=20))
             st.plotly_chart(fig_vol, use_container_width=True)
 
         with c2:
             st.subheader("💰 Faturamento por Loja")
+            
             fig_fat = px.pie(
-                df_sales.groupby("LOJA")["VALOR_TOTAL_VENDIDO"].sum().reset_index(),
-                names="LOJA", values="VALOR_TOTAL_VENDIDO", hole=0.4
+                df_filtered.groupby("LOJA")["VALOR_TOTAL_VENDIDO"].sum().reset_index(),
+                names="LOJA", 
+                values="VALOR_TOTAL_VENDIDO", 
+                hole=0.4,
+                labels={"LOJA": "Loja", "VALOR_TOTAL_VENDIDO": "Faturamento R$"},
+                template="plotly_dark"
             )
+            fig_fat.update_layout(margin=dict(l=20, r=20, t=30, b=20))
             st.plotly_chart(fig_fat, use_container_width=True)
+
+        st.divider()
+        
+        # Visão em Abas para Detalhamento Individual por Loja
+        st.subheader("🔍 Detalhamento por Filial")
+        tabs = st.tabs([f"🏪 Loja {loja}" for loja in lojas_disponiveis])
+
+        for i, loja in enumerate(lojas_disponiveis):
+            with tabs[i]:
+                df_loja = df_sales[df_sales["LOJA"] == loja].sort_values(by="QTD_VENDIDA_TOTAL", ascending=False)
+                
+                fat_loja = df_loja["VALOR_TOTAL_VENDIDO"].sum()
+                qtd_loja = df_loja["QTD_VENDIDA_TOTAL"].sum()
+                
+                m1, m2 = st.columns(2)
+                m1.metric(f"Faturamento Loja {loja}", f"R$ {fat_loja:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                m2.metric(f"Volume Loja {loja}", f"{qtd_loja:,.2f} kg".replace(",", "X").replace(".", ",").replace("X", "."))
+                
+                st.dataframe(
+                    df_loja[["PRODUTO", "QTD_VENDIDA_TOTAL", "VALOR_TOTAL_VENDIDO"]],
+                    use_container_width=True,
+                    column_config={
+                        "PRODUTO": "Produto",
+                        "QTD_VENDIDA_TOTAL": st.column_config.NumberColumn("Qtd Vendida (kg)", format="%.2f kg"),
+                        "VALOR_TOTAL_VENDIDO": st.column_config.NumberColumn("Faturamento", format="R$ %.2f")
+                    }
+                )
 
     # -------------------------------------------------------------
     # PÁGINA 2: ESTOQUE LOJAS VS INDÚSTRIA
