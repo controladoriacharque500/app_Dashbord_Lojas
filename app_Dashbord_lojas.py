@@ -321,8 +321,8 @@ if check_password():
     # PÁGINA 3: ALERTAS DE REPOSIÇÃO CRÍTICA
     # -------------------------------------------------------------
    elif page == "⚠️ Alertas de Reposição Crítica":
-    st.title("🚨 Central de Alertas e Inventário")
-    st.caption("Gestão de estoque crítico, inventários pendentes e reposição por loja")
+        st.title("🚨 Central de Alertas e Inventário")
+        st.caption("Gestão de estoque crítico, inventários pendentes e reposição por loja")
 
     if df_inv.empty:
         st.warning("Sem dados de estoque para calcular alertas.")
