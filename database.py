@@ -29,7 +29,7 @@ def buscar_vendas_reais(data_inicio='2025-01-01'):
     try:
         headers = {"ngrok-skip-browser-warning": "69420"}
         url = f"{API_URL}/vendas?data_inicio={data_inicio}"
-        response = requests.get(url, headers=headers, timeout=15)
+        response = requests.get(url, headers=headers, timeout=60)
         
         if response.status_code == 200:
             data = response.json()
@@ -65,7 +65,7 @@ def buscar_estoque_real():
     try:
         headers = {"ngrok-skip-browser-warning": "69420"}
         url = f"{API_URL}/estoque"
-        response = requests.get(url, headers=headers, timeout=15)
+        response = requests.get(url, headers=headers, timeout=60)
         
         if response.status_code == 200:
             df = pd.DataFrame(response.json())
