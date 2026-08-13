@@ -4,6 +4,23 @@ import plotly.express as px
 from database import PALETA_CORES
 from database import buscar_vendas_reais, buscar_estoque_real
 
+# -------------------------------------------------------------
+# FUNÇÃO DE FORMATAÇÃO NO PADRÃO BRASILEIRO (PT-BR)
+# -------------------------------------------------------------
+def formatar_br(valor, sufixo="", prefixo=""):
+    """
+    Formata um número float para o padrão brasileiro: 183.180.959,97
+    """
+    if valor is None or pd.isna(valor):
+        return f"{prefixo}0,00{sufixo}"
+    
+    # Formata em padrão americano primeiro (com vírgula nos milhares)
+    texto = f"{valor:,.2f}"
+    # Inverte ponto por vírgula e vírgula por ponto
+    texto = texto.replace(",", "X").replace(".", ",").replace("X", ".")
+    
+    return f"{prefixo}{texto}{sufixo}"
+
 # Configuração da Página
 st.set_page_config(
     page_title="Dashboard de Vendas & Estoque - Rede Market",
@@ -133,7 +150,7 @@ if check_password():
                         (df_filtrado["DATA"].dt.date <= dt_fim)
                     ]
 
-            # --- CARDS DE RESUMO (KPIs) ---
+            # --- CARDS DE RESUMO (KPIs FORMATADOS EM PT-BR) ---
             st.markdown("---")
             kpi1, kpi2, kpi3 = st.columns(3)
             
@@ -141,9 +158,10 @@ if check_password():
             vol_total = df_filtrado["QTD_VENDIDA_TOTAL"].sum()
             preco_medio = fat_total / vol_total if vol_total > 0 else 0
 
-            kpi1.metric("Faturamento Total", f"R$ {fat_total:,.2f}")
-            kpi2.metric("Volume Total Vendido", f"{vol_total:,.2f} kg")
-            kpi3.metric("Preço Médio / kg", f"R$ {preco_medio:,.2f}")
+            # Aplica a formatação PT-BR
+            kpi1.metric("Faturamento Total", formatar_br(fat_total, prefixo="R$ "))
+            kpi2.metric("Volume Total Vendido", formatar_br(vol_total, sufixo=" kg"))
+            kpi3.metric("Preço Médio / kg", formatar_br(preco_medio, prefixo="R$ "))
 
             # --- GRÁFICOS COM CORES PADRONIZADAS ---
             st.markdown("---")
@@ -191,24 +209,26 @@ if check_password():
                 with tabs[i]:
                     df_loja = df_sales[df_sales["LOJA"].astype(str) == loja].sort_values(by="QTD_VENDIDA_TOTAL", ascending=False)
                     
-                    fat_loja = df_loja["VALOR_TOTAL_VENDIDO"].sum()
+                    fat_loja = df_loja["VALOR_TOTAL_VENDIDO"].sum() if "VALOR_TOTAL_VENDIDO" in df_loja.columns else df_loja["FATURAMENTO_TOTAL"].sum()
                     qtd_loja = df_loja["QTD_VENDIDA_TOTAL"].sum()
                     
                     m1, m2 = st.columns(2)
-                    m1.metric(f"Faturamento Loja {loja}", f"R$ {fat_loja:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-                    m2.metric(f"Volume Loja {loja}", f"{qtd_loja:,.2f} kg".replace(",", "X").replace(".", ",").replace("X", "."))
+                    m1.metric(f"Faturamento Loja {loja}", formatar_br(fat_loja, prefixo="R$ "))
+                    m2.metric(f"Volume Loja {loja}", formatar_br(qtd_loja, sufixo=" kg"))
+                    
+                    col_valor = "VALOR_TOTAL_VENDIDO" if "VALOR_TOTAL_VENDIDO" in df_loja.columns else "FATURAMENTO_TOTAL"
                     
                     st.dataframe(
-                        df_loja[["PRODUTO", "QTD_VENDIDA_TOTAL", "VALOR_TOTAL_VENDIDO"]],
+                        df_loja[["PRODUTO", "QTD_VENDIDA_TOTAL", col_valor]],
                         use_container_width=True,
                         column_config={
                             "PRODUTO": "Produto",
                             "QTD_VENDIDA_TOTAL": st.column_config.NumberColumn("Qtd Vendida (kg)", format="%.2f kg"),
-                            "VALOR_TOTAL_VENDIDO": st.column_config.NumberColumn("Faturamento", format="R$ %.2f")
+                            col_valor: st.column_config.NumberColumn("Faturamento", format="R$ %.2f")
                         }
                     )
 
-   # -------------------------------------------------------------
+    # -------------------------------------------------------------
     # PÁGINA 2: ESTOQUE LOJAS VS INDÚSTRIA
     # -------------------------------------------------------------
     elif page == "📦 Estoque Lojas vs. Indústria (IN)":
@@ -265,13 +285,13 @@ if check_password():
                 item_dados = df_inv[df_inv["PRODUTO"] == produto_sel].iloc[0]
                 
                 c1, c2, c3, c4, c5 = st.columns(5)
-                c1.metric("🏭 Indústria (IN)", f"{item_dados.get('Indústria (IN)', 0):,.2f} kg")
-                c2.metric("🏪 Maricá", f"{item_dados.get('Maricá', 0):,.2f} kg")
-                c3.metric("🏪 Barra", f"{item_dados.get('Barra', 0):,.2f} kg")
-                c4.metric("🏪 Inoã", f"{item_dados.get('Inoã', 0):,.2f} kg")
-                c5.metric("🏪 Ceasa Irajá", f"{item_dados.get('Ceasa Irajá', 0):,.2f} kg")
+                c1.metric("🏭 Indústria (IN)", formatar_br(item_dados.get('Indústria (IN)', 0), sufixo=" kg"))
+                c2.metric("🏪 Maricá", formatar_br(item_dados.get('Maricá', 0), sufixo=" kg"))
+                c3.metric("🏪 Barra", formatar_br(item_dados.get('Barra', 0), sufixo=" kg"))
+                c4.metric("🏪 Inoã", formatar_br(item_dados.get('Inoã', 0), sufixo=" kg"))
+                c5.metric("🏪 Ceasa Irajá", formatar_br(item_dados.get('Ceasa Irajá', 0), sufixo=" kg"))
 
-   # -------------------------------------------------------------
+    # -------------------------------------------------------------
     # PÁGINA 3: ALERTAS DE REPOSIÇÃO CRÍTICA
     # -------------------------------------------------------------
     elif page == "⚠️ Alertas de Reposição Crítica":
@@ -314,14 +334,14 @@ if check_password():
                             qtd_minima = row[col_minimo]
                             estoque_ind = row.get('Indústria (IN)', 0)
                             
-                            with st.expander(f"⚠️ {row['PRODUTO']} (Atual: {qtd_atual} kg | Mín. Semanal {nome_loja}: {qtd_minima} kg)"):
-                                st.write(f"**Estoque Disponível na Indústria (IN):** `{estoque_ind} kg`")
+                            with st.expander(f"⚠️ {row['PRODUTO']} (Atual: {formatar_br(qtd_atual, sufixo=' kg')} | Mín. Semanal {nome_loja}: {formatar_br(qtd_minima, sufixo=' kg')})"):
+                                st.write(f"**Estoque Disponível na Indústria (IN):** `{formatar_br(estoque_ind, sufixo=' kg')}`")
                                 
                                 necessidade = qtd_minima - qtd_atual
                                 if estoque_ind >= necessidade:
-                                    st.success(f"✅ Indústria possui saldo suficiente para abastecer ({necessidade:.2f} kg necessários)!")
+                                    st.success(f"✅ Indústria possui saldo suficiente para abastecer ({formatar_br(necessidade, sufixo=' kg')} necessários)!")
                                 else:
-                                    st.error(f"❌ Atenção: Saldo na Indústria é insuficiente para a necessidade de {necessidade:.2f} kg!")
+                                    st.error(f"❌ Atenção: Saldo na Indústria é insuficiente para a necessidade de {formatar_br(necessidade, sufixo=' kg')}!")
                     else:
                         st.info(f"Sem dados de estoque para a loja {nome_loja}.")
 
