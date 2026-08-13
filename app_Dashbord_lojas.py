@@ -169,20 +169,39 @@ if check_password():
 
             with g1:
                 st.subheader("🏆 Volume por Loja (kg)")
-                # Agrupa faturamento/volume por produto e loja
-                df_prod = df_filtrado.groupby(["PRODUTO", "LOJA"])["QTD_VENDIDA_TOTAL"].sum().reset_index()
-                df_top = df_prod.sort_values(by="QTD_VENDIDA_TOTAL", ascending=False).head(15)
+                
+                # 1. Filtra subprodutos industriais / graxaria que não devem entrar na análise executiva
+                df_grafico = df_filtrado[
+                    ~df_filtrado["PRODUTO"].astype(str).str.upper().str.contains("RESIDUO NAO COMESTIVEL|GRAXARIA|SOBRAS", na=False)
+                ].copy()
 
+                # 2. Descobre os TOP 10 produtos ÚNICOS em volume total (soma de todas as lojas)
+                top_10_produtos = (
+                    df_grafico.groupby("PRODUTO")["QTD_VENDIDA_TOTAL"]
+                    .sum()
+                    .nlargest(10)
+                    .index
+                )
+
+                # 3. Filtra apenas os dados desses 10 produtos e agrupa por produto e loja
+                df_top10 = df_grafico[df_grafico["PRODUTO"].isin(top_10_produtos)]
+                df_top_agrupado = df_top10.groupby(["PRODUTO", "LOJA"])["QTD_VENDIDA_TOTAL"].sum().reset_index()
+
+                # 4. Renderiza o gráfico com os 10 produtos reais
                 fig_bar = px.bar(
-                    df_top,
+                    df_top_agrupado,
                     x="QTD_VENDIDA_TOTAL",
                     y="PRODUTO",
                     color="LOJA",
                     orientation="h",
-                    color_discrete_map=PALETA_CORES,  # 🎨 Aplica a paleta fixa!
-                    title="Top Produtos por Loja"
+                    color_discrete_map=PALETA_CORES,  # 🎨 Mantém a paleta por loja
+                    title="Top 10 Produtos Mais Vendidos"
                 )
-                fig_bar.update_layout(yaxis={'categoryorder':'total ascending'})
+                fig_bar.update_layout(
+                    yaxis={'categoryorder': 'total ascending'},
+                    xaxis_title="Quantidade Vendida (kg)",
+                    yaxis_title=""
+                )
                 st.plotly_chart(fig_bar, use_container_width=True)
 
             with g2:
