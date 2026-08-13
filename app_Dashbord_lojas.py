@@ -320,94 +320,97 @@ if check_password():
     # -------------------------------------------------------------
     # PÁGINA 3: ALERTAS DE REPOSIÇÃO CRÍTICA
     # -------------------------------------------------------------
-   elif page == "⚠️ Alertas de Reposição Crítica":
+   # -------------------------------------------------------------
+    # PÁGINA 3: ALERTAS DE REPOSIÇÃO CRÍTICA
+    # -------------------------------------------------------------
+    elif page == "⚠️ Alertas de Reposição Crítica":
         st.title("🚨 Central de Alertas e Inventário")
         st.caption("Gestão de estoque crítico, inventários pendentes e reposição por loja")
 
-    if df_inv.empty:
-        st.warning("Sem dados de estoque para calcular alertas.")
-    else:
-        # ABAS PRINCIPAIS DO PAINEL
-        tab_negativos, tab_reposicao = st.tabs([
-            "🔴 1. Alertar Estoque Negativo (Inventariar)", 
-            "⚠️ 2. Alertas de Reposição Crítica"
-        ])
-
-        # =========================================================
-        # ABA 1: ESTOQUE NEGATIVO (EXCLUSIVO PARA INVENTÁRIO)
-        # =========================================================
-        with tab_negativos:
-            st.subheader("📋 Produtos com Estoque Negativo para Acerto")
-            st.caption("Estes itens precisam ser inventariados fisicamente para correção no sistema.")
-
-            lojas_nomes = ["Maricá", "Barra", "Inoã", "Ceasa Irajá"]
-            
-            for nome_loja in lojas_nomes:
-                if nome_loja in df_inv.columns:
-                    # Filtra apenas itens com estoque menor que zero na loja específica
-                    df_neg = df_inv[df_inv[nome_loja] < 0]
-
-                    if not df_neg.empty:
-                        with st.expander(f"🔴 {nome_loja} — {len(df_neg)} produto(s) com estoque negativo"):
-                            st.dataframe(
-                                df_neg[["PRODUTO", nome_loja]],
-                                use_container_width=True,
-                                column_config={
-                                    "PRODUTO": st.column_config.TextColumn("Descrição do Produto"),
-                                    nome_loja: st.column_config.NumberColumn("Estoque em Sistema", format="%.2f kg")
-                                },
-                                hide_index=True
-                            )
-                    else:
-                        st.success(f"✅ {nome_loja}: Nenhum produto com estoque negativo!")
-
-        # =========================================================
-        # ABA 2: ALERTAS DE REPOSIÇÃO CRÍTICA (SUA LÓGICA ATUAL MANTIDA)
-        # =========================================================
-        with tab_reposicao:
-            tab1, tab2, tab3, tab4 = st.tabs([
-                "🔴 Maricá",
-                "🔴 Barra",
-                "🔴 Inoã",
-                "🔴 Ceasa Irajá"
+        if df_inv.empty:
+            st.warning("Sem dados de estoque para calcular alertas.")
+        else:
+            # ABAS PRINCIPAIS DO PAINEL
+            tab_negativos, tab_reposicao = st.tabs([
+                "🔴 1. Alertar Estoque Negativo (Inventariar)", 
+                "⚠️ 2. Alertas de Reposição Crítica"
             ])
 
-            lojas = [
-                (tab1, "Maricá"),
-                (tab2, "Barra"),
-                (tab3, "Inoã"),
-                (tab4, "Ceasa Irajá")
-            ]
+            # =========================================================
+            # ABA 1: ESTOQUE NEGATIVO (EXCLUSIVO PARA INVENTÁRIO)
+            # =========================================================
+            with tab_negativos:
+                st.subheader("📋 Produtos com Estoque Negativo para Acerto")
+                st.caption("Estes itens precisam ser inventariados fisicamente para correção no sistema.")
 
-            for tab, nome_loja in lojas:
-                with tab:
-                    col_minimo = f"MINIMO_{nome_loja}"
+                lojas_nomes = ["Maricá", "Barra", "Inoã", "Ceasa Irajá"]
+                
+                for nome_loja in lojas_nomes:
+                    if nome_loja in df_inv.columns:
+                        # Filtra apenas itens com estoque menor que zero na loja específica
+                        df_neg = df_inv[df_inv[nome_loja] < 0]
 
-                    if nome_loja in df_inv.columns and col_minimo in df_inv.columns:
-                        # REGRA CHAVE: Filtra estoque < mínimo E garante que estoque seja >= 0 (expurga os negativos daqui)
-                        criticos = df_inv[
-                            (df_inv[col_minimo] > 0) & 
-                            (df_inv[nome_loja] < df_inv[col_minimo]) &
-                            (df_inv[nome_loja] >= 0)
-                        ]
+                        if not df_neg.empty:
+                            with st.expander(f"🔴 {nome_loja} — {len(df_neg)} produto(s) com estoque negativo"):
+                                st.dataframe(
+                                    df_neg[["PRODUTO", nome_loja]],
+                                    use_container_width=True,
+                                    column_config={
+                                        "PRODUTO": st.column_config.TextColumn("Descrição do Produto"),
+                                        nome_loja: st.column_config.NumberColumn("Estoque em Sistema", format="%.2f kg")
+                                    },
+                                    hide_index=True
+                                )
+                        else:
+                            st.success(f"✅ {nome_loja}: Nenhum produto com estoque negativo!")
 
-                        st.warning(f"Existem **{len(criticos)}** produtos com reposição necessária em {nome_loja}.")
+            # =========================================================
+            # ABA 2: ALERTAS DE REPOSIÇÃO CRÍTICA
+            # =========================================================
+            with tab_reposicao:
+                tab1, tab2, tab3, tab4 = st.tabs([
+                    "🔴 Maricá",
+                    "🔴 Barra",
+                    "🔴 Inoã",
+                    "🔴 Ceasa Irajá"
+                ])
 
-                        for _, row in criticos.iterrows():
-                            qtd_atual = row[nome_loja]
-                            qtd_minima = row[col_minimo]
-                            estoque_ind = row.get('Indústria (IN)', 0)
+                lojas = [
+                    (tab1, "Maricá"),
+                    (tab2, "Barra"),
+                    (tab3, "Inoã"),
+                    (tab4, "Ceasa Irajá")
+                ]
 
-                            with st.expander(f"⚠️ {row['PRODUTO']} (Atual: {formatar_br(qtd_atual, sufixo=' kg')} | Mín. Semanal {nome_loja}: {formatar_br(qtd_minima, sufixo=' kg')})"):
-                                st.write(f"**Estoque Disponível na Indústria (IN):** `{formatar_br(estoque_ind, sufixo=' kg')}`")
+                for tab, nome_loja in lojas:
+                    with tab:
+                        col_minimo = f"MINIMO_{nome_loja}"
 
-                                necessidade = qtd_minima - qtd_atual
-                                if estoque_ind >= necessidade:
-                                    st.success(f"✅ Indústria possui saldo suficiente para abastecer ({formatar_br(necessidade, sufixo=' kg')} necessários!)")
-                                else:
-                                    st.error(f"❌ Atenção: Saldo na Indústria é insuficiente para a necessidade de {formatar_br(necessidade, sufixo=' kg')}!")
-                    else:
-                        st.info(f"Sem dados de estoque para a loja {nome_loja}.")
+                        if nome_loja in df_inv.columns and col_minimo in df_inv.columns:
+                            # Filtra estoque < mínimo E garante que estoque seja >= 0
+                            criticos = df_inv[
+                                (df_inv[col_minimo] > 0) & 
+                                (df_inv[nome_loja] < df_inv[col_minimo]) &
+                                (df_inv[nome_loja] >= 0)
+                            ]
+
+                            st.warning(f"Existem **{len(criticos)}** produtos com reposição necessária em {nome_loja}.")
+
+                            for _, row in criticos.iterrows():
+                                qtd_atual = row[nome_loja]
+                                qtd_minima = row[col_minimo]
+                                estoque_ind = row.get('Indústria (IN)', 0)
+
+                                with st.expander(f"⚠️ {row['PRODUTO']} (Atual: {formatar_br(qtd_atual, sufixo=' kg')} | Mín. Semanal {nome_loja}: {formatar_br(qtd_minima, sufixo=' kg')})"):
+                                    st.write(f"**Estoque Disponível na Indústria (IN):** `{formatar_br(estoque_ind, sufixo=' kg')}`")
+
+                                    necessidade = qtd_minima - qtd_atual
+                                    if estoque_ind >= necessidade:
+                                        st.success(f"✅ Indústria possui saldo suficiente para abastecer ({formatar_br(necessidade, sufixo=' kg')} necessários!)")
+                                    else:
+                                        st.error(f"❌ Atenção: Saldo na Indústria é insuficiente para a necessidade de {formatar_br(necessidade, sufixo=' kg')}!")
+                        else:
+                            st.info(f"Sem dados de estoque para a loja {nome_loja}.")
 
     # -------------------------------------------------------------
     # BOTÃO DE LOGOUT
