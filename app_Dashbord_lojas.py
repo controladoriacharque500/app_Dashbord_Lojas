@@ -20,9 +20,34 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------------------
-# AUTENTICAÇÃO E LOGIN
+# FUNÇÃO DE AUTENTICAÇÃO (SISTEMA DE LOGIN SEGURO)
 # -------------------------------------------------------------
-# Garanta que a função check_password() esteja definida ou importada
+def check_password():
+    """Retorna True se o usuário digitou a senha correta configurada nos Secrets."""
+    def password_entered():
+        # Compara a senha digitada com a chave PASSWORD nos Secrets do Streamlit
+        if st.session_state["password"] == st.secrets.get("PASSWORD", ""):
+            st.session_state["authenticated"] = True
+            del st.session_state["password"]  # Não mantém a senha na memória
+        else:
+            st.session_state["authenticated"] = False
+
+    # Se já estiver autenticado na sessão, libera o acesso
+    if st.session_state.get("authenticated", False):
+        return True
+
+    # Tela de Login
+    st.title("🔒 Acesso Restrito - Rede Market")
+    st.text_input("Digite a senha do sistema:", type="password", on_change=password_entered, key="password")
+    
+    if "authenticated" in st.session_state and not st.session_state["authenticated"]:
+        st.error("😕 Senha incorreta. Tente novamente.")
+        
+    return False
+
+# -------------------------------------------------------------
+# EXECUÇÃO DO APLICATIVO
+# -------------------------------------------------------------
 if check_password():
     
     # -------------------------------------------------------------
