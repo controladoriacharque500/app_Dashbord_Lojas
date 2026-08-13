@@ -119,6 +119,17 @@ if check_password():
         if df_vendas.empty:
             st.warning("Sem dados de vendas disponíveis no momento.")
         else:
+            # Lista de palavras-chave de produtos EXCLUSIVAMENTE INDUSTRIAIS / REMESSAS
+            # que devem ser removidos do faturamento de Varejo das Lojas
+            TERMOS_EXCLUIR_LOJA = [
+                "RESIDUO NAO COMESTIVEL", 
+                "SUCATA DE SAL", 
+                "MPB -", 
+                "GRAXARIA", 
+                "SOBRAS"
+            ]
+            pattern_excluir = "|".join(TERMOS_EXCLUIR_LOJA)
+
             # --- FILTROS EXECUTIVOS (LOJAS E DATAS) ---
             st.markdown("### 🔍 Filtros de Análise")
             col1, col2, col3 = st.columns([2, 1, 1])
@@ -127,7 +138,6 @@ if check_password():
                 lojas_disponiveis = df_vendas["LOJA"].unique().tolist()
                 lojas_sel = st.multiselect("Filtrar Lojas:", lojas_disponiveis, default=lojas_disponiveis)
 
-            # Filtro por Período/Data
             df_filtrado = df_vendas[df_vendas["LOJA"].isin(lojas_sel)].copy()
 
             if "DATA" in df_filtrado.columns and not df_filtrado["DATA"].isnull().all():
@@ -142,7 +152,6 @@ if check_password():
                         max_value=max_date
                     )
                 
-                # Aplica o intervalo de datas selecionado
                 if isinstance(periodo_sel, tuple) and len(periodo_sel) == 2:
                     dt_inicio, dt_fim = periodo_sel
                     df_filtrado = df_filtrado[
@@ -150,7 +159,7 @@ if check_password():
                         (df_filtrado["DATA"].dt.date <= dt_fim)
                     ]
 
-            # --- CARDS DE RESUMO (KPIs FORMATADOS EM PT-BR) ---
+            # CARDS DE RESUMO
             st.markdown("---")
             kpi1, kpi2, kpi3 = st.columns(3)
             
@@ -158,24 +167,20 @@ if check_password():
             vol_total = df_filtrado["QTD_VENDIDA_TOTAL"].sum()
             preco_medio = fat_total / vol_total if vol_total > 0 else 0
 
-            # Aplica a formatação PT-BR
             kpi1.metric("Faturamento Total", formatar_br(fat_total, prefixo="R$ "))
             kpi2.metric("Volume Total Vendido", formatar_br(vol_total, sufixo=" kg"))
             kpi3.metric("Preço Médio / kg", formatar_br(preco_medio, prefixo="R$ "))
 
-            # --- GRÁFICOS COM CORES PADRONIZADAS ---
             st.markdown("---")
             g1, g2 = st.columns(2)
 
             with g1:
                 st.subheader("🏆 Volume por Loja (kg)")
-                
-                # 1. Filtra subprodutos industriais / graxaria que não devem entrar na análise executiva
+                # Remove itens industriais do gráfico de lojas
                 df_grafico = df_filtrado[
-                    ~df_filtrado["PRODUTO"].astype(str).str.upper().str.contains("RESIDUO NAO COMESTIVEL|GRAXARIA|SOBRAS", na=False)
+                    ~df_filtrado["PRODUTO"].astype(str).str.upper().str.contains(pattern_excluir, na=False)
                 ].copy()
 
-                # 2. Descobre os TOP 10 produtos ÚNICOS em volume total (soma de todas as lojas)
                 top_10_produtos = (
                     df_grafico.groupby("PRODUTO")["QTD_VENDIDA_TOTAL"]
                     .sum()
@@ -183,25 +188,19 @@ if check_password():
                     .index
                 )
 
-                # 3. Filtra apenas os dados desses 10 produtos e agrupa por produto e loja
                 df_top10 = df_grafico[df_grafico["PRODUTO"].isin(top_10_produtos)]
                 df_top_agrupado = df_top10.groupby(["PRODUTO", "LOJA"])["QTD_VENDIDA_TOTAL"].sum().reset_index()
 
-                # 4. Renderiza o gráfico com os 10 produtos reais
                 fig_bar = px.bar(
                     df_top_agrupado,
                     x="QTD_VENDIDA_TOTAL",
                     y="PRODUTO",
                     color="LOJA",
                     orientation="h",
-                    color_discrete_map=PALETA_CORES,  # 🎨 Mantém a paleta por loja
-                    title="Top 10 Produtos Mais Vendidos"
+                    color_discrete_map=PALETA_CORES,
+                    title="Top 10 Produtos Varejo Mais Vendidos"
                 )
-                fig_bar.update_layout(
-                    yaxis={'categoryorder': 'total ascending'},
-                    xaxis_title="Quantidade Vendida (kg)",
-                    yaxis_title=""
-                )
+                fig_bar.update_layout(yaxis={'categoryorder': 'total ascending'}, xaxis_title="Quantidade Vendida (kg)", yaxis_title="")
                 st.plotly_chart(fig_bar, use_container_width=True)
 
             with g2:
@@ -213,20 +212,28 @@ if check_password():
                     values="FATURAMENTO_TOTAL",
                     names="LOJA",
                     color="LOJA",
-                    color_discrete_map=PALETA_CORES,  # 🎨 Aplica a paleta fixa!
+                    color_discrete_map=PALETA_CORES,
                     hole=0.4
                 )
                 st.plotly_chart(fig_pie, use_container_width=True)
 
             st.divider()
             
-            # Visão em Abas para Detalhamento Individual por Loja
+            # Detalhamento por Filial
             st.subheader("🔍 Detalhamento por Filial")
             tabs = st.tabs([f"🏪 Loja {loja}" for loja in lojas_disponiveis])
 
             for i, loja in enumerate(lojas_disponiveis):
                 with tabs[i]:
-                    df_loja = df_sales[df_sales["LOJA"].astype(str) == loja].sort_values(by="QTD_VENDIDA_TOTAL", ascending=False)
+                    df_loja = df_sales[df_sales["LOJA"].astype(str) == loja].copy()
+                    
+                    # SE A ABA NÃO FOR "INDÚSTRIA", FILTRA OS ITENS INDUSTRIAIS/REMESSAS
+                    if loja.upper() != "INDÚSTRIA" and loja.upper() != "INDUSTRIA":
+                        df_loja = df_loja[
+                            ~df_loja["PRODUTO"].astype(str).str.upper().str.contains(pattern_excluir, na=False)
+                        ]
+
+                    df_loja = df_loja.sort_values(by="QTD_VENDIDA_TOTAL", ascending=False)
                     
                     fat_loja = df_loja["VALOR_TOTAL_VENDIDO"].sum() if "VALOR_TOTAL_VENDIDO" in df_loja.columns else df_loja["FATURAMENTO_TOTAL"].sum()
                     qtd_loja = df_loja["QTD_VENDIDA_TOTAL"].sum()
