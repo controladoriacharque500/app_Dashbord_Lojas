@@ -21,7 +21,7 @@ NOMES_LOJAS = {
     "IN": "Indústria"
 }
 
-def buscar_vendas_reais(data_inicio='2026-01-01'):
+def buscar_vendas_reais(data_inicio='2025-01-01'):
     if not API_URL:
         st.error("URL da API não configurada!")
         return pd.DataFrame()
@@ -32,16 +32,25 @@ def buscar_vendas_reais(data_inicio='2026-01-01'):
         response = requests.get(url, headers=headers, timeout=15)
         
         if response.status_code == 200:
-            df = pd.DataFrame(response.json())
-            if not df.empty:
+            data = response.json()
+            
+            # Se a resposta for um dicionário (ex: {"error": "..."}), trata com segurança
+            if isinstance(data, dict):
+                if "error" in data:
+                    st.error(f"Erro da API: {data['error']}")
+                return pd.DataFrame()
+            
+            # Se for uma lista válida de dados
+            if isinstance(data, list) and len(data) > 0:
+                df = pd.DataFrame(data)
                 if "LOJA" in df.columns:
                     df["LOJA"] = df["LOJA"].astype(str).str.strip().map(
                         lambda x: NOMES_LOJAS.get(x, f"Loja {x}")
                     )
-                # Converte para datetime para permitir filtros avançados
                 if "DATA" in df.columns:
                     df["DATA"] = pd.to_datetime(df["DATA"])
-            return df
+                return df
+                
         return pd.DataFrame()
     except Exception as e:
         st.error(f"Erro ao buscar Vendas: {e}")
