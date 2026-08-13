@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from database import buscar_vendas_reais, buscar_estoque_real
 
 # Configuração da Página
 st.set_page_config(
@@ -21,26 +22,44 @@ st.markdown("""
 # -------------------------------------------------------------
 # 1. AUTENTICAÇÃO E LOGIN
 # -------------------------------------------------------------
-def check_password():
-    if "authenticated" not in st.session_state:
-        st.session_state["authenticated"] = False
+if check_password():
+    # -------------------------------------------------------------
+    # MENU LATERAL + BOTÃO DE ATUALIZAÇÃO EM TEMPO REAL
+    # -------------------------------------------------------------
+    st.sidebar.title("Navegação & Operações")
+    
+    # 🔄 Botão de Atualizar Dados em Tempo Real
+    if st.sidebar.button("🔄 Atualizar Dados do Banco", use_container_width=True):
+        st.cache_data.clear()  # Limpa o cache para forçar a nova consulta ao Firebird
+        st.sidebar.success("Dados atualizados com sucesso!")
+        st.rerun()
 
-    if not st.session_state["authenticated"]:
-        st.title("🔐 Login - Gestão de Estoque & Vendas")
-        with st.form("login_form"):
-            username = st.text_input("Usuário")
-            password = st.text_input("Senha", type="password")
-            submit = st.form_submit_button("Entrar")
-            if submit:
-                # Altere os usuários/senhas conforme necessário
-                if username in ["gerente", "admin", "loja01", "loja03"] and password == "123456":
-                    st.session_state["authenticated"] = True
-                    st.success("Login realizado com sucesso!")
-                    st.rerun()
-                else:
-                    st.error("Usuário ou senha incorretos")
-        return False
-    return True
+    st.sidebar.divider()
+
+    page = st.sidebar.radio("Selecione a Visão:", [
+        "📊 Vendas & Faturamento",
+        "📦 Estoque Lojas vs. Indústria (IN)",
+        "⚠️ Alertas de Reposição Crítica"
+    ])
+
+    # -------------------------------------------------------------
+    # CARREGAMENTO DE DADOS COM CACHE
+    # -------------------------------------------------------------
+    @st.cache_data(ttl=300) # Atualiza automaticamente a cada 5 min (ou quando clica no botão)
+    def load_sales():
+        return buscar_vendas_reais(data_inicio='2026-01-01')
+
+    @st.cache_data(ttl=300)
+    def load_inventory():
+        return buscar_estoque_real()
+
+    # Carrega dados
+    try:
+        df_sales = load_sales()
+        df_inv = load_inventory()
+    except Exception as e:
+        st.error(f"Erro ao conectar ao Banco de Dados Firebird: {e}")
+        st.stop()
 
 if check_password():
     # -------------------------------------------------------------
