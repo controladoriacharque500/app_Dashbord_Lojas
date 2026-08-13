@@ -190,65 +190,56 @@ if check_password():
         st.caption("Verifique o saldo no Centro de Distribuição / Indústria (Filial IN) para abastecimento das lojas.")
 
         if df_inv.empty:
-            st.warning("Nenhum dado de estoque encontrado.")
+            st.warning("Sem dados de estoque disponíveis no momento.")
         else:
+            colunas_exibicao = ["IDPRODUTO", "PRODUTO", "Indústria (IN)", "Maricá", "Barra", "Inoã", "Ceasa Irajá", "MINIMO_RECOMENDADO"]
+            cols_presentes = [c for c in colunas_exibicao if c in df_inv.columns]
+            
             st.dataframe(
-                df_inv,
+                df_inv[cols_presentes],
                 use_container_width=True,
-                column_config={
-                    "IDPRODUTO": "Cód.",
-                    "PRODUTO": "Descrição do Produto",
-                    "ESTOQUE_IN": st.column_config.NumberColumn("Indústria (IN) [kg]", format="%.2f kg"),
-                    "ESTOQUE_LOJA_01": st.column_config.NumberColumn("Loja 01 [kg]", format="%.2f kg"),
-                    "ESTOQUE_LOJA_03": st.column_config.NumberColumn("Loja 03 [kg]", format="%.2f kg"),
-                    "MINIMO_RECOMENDADO": st.column_config.NumberColumn("Mínimo Recomendado", format="%.2f kg"),
-                }
+                hide_index=True
             )
-
-            st.divider()
-            st.subheader("🔍 Análise de Disponibilidade para Transferência")
-            prod_select = st.selectbox("Selecione um Produto para Detalhamento:", df_inv["PRODUTO"].unique())
-            prod_data = df_inv[df_inv["PRODUTO"] == prod_select].iloc[0]
-
-            col_a, col_b, col_c = st.columns(3)
-            col_a.metric("Estoque na Indústria (IN)", f"{prod_data['ESTOQUE_IN']:,.2f} kg")
-            col_b.metric("Estoque Loja 01", f"{prod_data['ESTOQUE_LOJA_01']:,.2f} kg", delta=f"{prod_data['ESTOQUE_LOJA_01'] - prod_data['MINIMO_RECOMENDADO']:,.2f} kg")
-            col_c.metric("Estoque Loja 03", f"{prod_data['ESTOQUE_LOJA_03']:,.2f} kg", delta=f"{prod_data['ESTOQUE_LOJA_03'] - prod_data['MINIMO_RECOMENDADO']:,.2f} kg")
 
     # -------------------------------------------------------------
     # PÁGINA 3: ALERTAS DE REPOSIÇÃO CRÍTICA
     # -------------------------------------------------------------
     elif page == "⚠️ Alertas de Reposição Crítica":
         st.title("⚠️ Central de Alertas e Reposição")
-        st.caption("Produtos com estoque em loja abaixo do nível mínimo de segurança")
+        st.caption("Produtos com estoque em loja abaixo da média semanal de vendas (Nível de Segurança)")
 
         if df_inv.empty:
             st.warning("Sem dados de estoque para calcular alertas.")
         else:
-            criticos_01 = df_inv[df_inv["ESTOQUE_LOJA_01"] < df_inv["MINIMO_RECOMENDADO"]]
-            criticos_03 = df_inv[df_inv["ESTOQUE_LOJA_03"] < df_inv["MINIMO_RECOMENDADO"]]
+            tab1, tab2, tab3, tab4 = st.tabs([
+                "🔴 Maricá", 
+                "🔴 Barra", 
+                "🔴 Inoã", 
+                "🔴 Ceasa Irajá"
+            ])
 
-            tab1, tab2 = st.tabs(["🔴 Alertas Loja 01", "🔴 Alertas Loja 03"])
+            lojas = [
+                (tab1, "Maricá"),
+                (tab2, "Barra"),
+                (tab3, "Inoã"),
+                (tab4, "Ceasa Irajá")
+            ]
 
-            with tab1:
-                st.warning(f"Existem **{len(criticos_01)}** produtos abaixo do nível de segurança na Loja 01.")
-                for _, row in criticos_01.iterrows():
-                    with st.expander(f"⚠️ {row['PRODUTO']} (Atual: {row['ESTOQUE_LOJA_01']} kg | Mínimo: {row['MINIMO_RECOMENDADO']} kg)"):
-                        st.write(f"**Disponível na Indústria (IN) para transferência:** `{row['ESTOQUE_IN']} kg`")
-                        if row['ESTOQUE_IN'] >= (row['MINIMO_RECOMENDADO'] - row['ESTOQUE_LOJA_01']):
-                            st.success("✅ Indústria possui saldo suficiente para atender a reposição imediata!")
-                        else:
-                            st.error("❌ Atenção: Estoque na Indústria também está baixo!")
-
-            with tab2:
-                st.warning(f"Existem **{len(criticos_03)}** produtos abaixo do nível de segurança na Loja 03.")
-                for _, row in criticos_03.iterrows():
-                    with st.expander(f"⚠️ {row['PRODUTO']} (Atual: {row['ESTOQUE_LOJA_03']} kg | Mínimo: {row['MINIMO_RECOMENDADO']} kg)"):
-                        st.write(f"**Disponível na Indústria (IN) para transferência:** `{row['ESTOQUE_IN']} kg`")
-                        if row['ESTOQUE_IN'] >= (row['MINIMO_RECOMENDADO'] - row['ESTOQUE_LOJA_03']):
-                            st.success("✅ Indústria possui saldo suficiente para atender a reposição imediata!")
-                        else:
-                            st.error("❌ Atenção: Estoque na Indústria também está baixo!")
+            for tab, nome_loja in lojas:
+                with tab:
+                    if nome_loja in df_inv.columns:
+                        criticos = df_inv[df_inv[nome_loja] < df_inv["MINIMO_RECOMENDADO"]]
+                        st.warning(f"Existem **{len(criticos)}** produtos abaixo do nível de segurança em {nome_loja}.")
+                        
+                        for _, row in criticos.iterrows():
+                            with st.expander(f"⚠️ {row['PRODUTO']} (Atual: {row[nome_loja]} kg | Mínimo Semanal: {row['MINIMO_RECOMENDADO']} kg)"):
+                                st.write(f"**Estoque Disponível na Indústria:** `{row.get('Indústria (IN)', 0)} kg`")
+                                if row.get('Indústria (IN)', 0) >= (row['MINIMO_RECOMENDADO'] - row[nome_loja]):
+                                    st.success("✅ Indústria possui saldo suficiente para abastecimento!")
+                                else:
+                                    st.error("❌ Atenção: Estoque na Indústria também está crítico!")
+                    else:
+                        st.info(f"Sem dados de estoque para a loja {nome_loja}.")
 
     # -------------------------------------------------------------
     # BOTÃO DE LOGOUT
