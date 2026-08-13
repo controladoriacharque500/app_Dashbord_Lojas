@@ -49,23 +49,35 @@ def buscar_estoque_real():
             df = pd.DataFrame(response.json())
             
             if not df.empty:
-                # 1. Busca o histórico de vendas para saber o que é Produto Comercial Final
+                # 1. Busca histórico de vendas para saber o giro individual por LOJA
                 df_vendas = buscar_vendas_reais()
                 
                 if not df_vendas.empty:
-                    # Lista apenas IDs de produtos que tiveram alguma venda comercial
+                    # Filtra apenas produtos vendáveis
                     produtos_vendaveis = df_vendas["IDPRODUTO"].unique()
-                    
-                    # FILTRO CRÍTICO: Mantém no estoque APENAS produtos que são vendidos
                     df = df[df["IDPRODUTO"].isin(produtos_vendaveis)].copy()
                     
-                    # Calcula Mínimo Semanal com base nas vendas reais
-                    media_vendas = df_vendas.groupby("IDPRODUTO")["QTD_VENDIDA_TOTAL"].sum() / 4.3
-                    df["MINIMO_RECOMENDADO"] = df["IDPRODUTO"].map(media_vendas).fillna(10.0).round(2)
-                else:
-                    df["MINIMO_RECOMENDADO"] = 10.0
+                    # Média de vendas semanais POR LOJA E POR PRODUTO
+                    # (Dividido por 4.3 para estimar 1 semana a partir do histórico mensal)
+                    vendas_por_loja = df_vendas.groupby(["IDPRODUTO", "LOJA"])["QTD_VENDIDA_TOTAL"].sum() / 4.3
+                    
+                    # Cria colunas de mínimo individual para cada loja
+                    # Mapeia o mínimo específico da filial (ex: MINIMO_Maricá, MINIMO_Barra, etc.)
+                    lojas_map = {
+                        "ESTOQUE_LOJA_01": "Maricá",
+                        "ESTOQUE_LOJA_02": "Barra",
+                        "ESTOQUE_LOJA_03": "Inoã",
+                        "ESTOQUE_LOJA_04": "Ceasa Irajá"
+                    }
+                    
+                    for col_estoque, nome_loja in lojas_map.items():
+                        col_minimo = f"MINIMO_{nome_loja}"
+                        # Busca a média de vendas específica desta loja para este produto
+                        df[col_minimo] = df["IDPRODUTO"].apply(
+                            lambda pid: vendas_por_loja.get((pid, nome_loja), 0.0)
+                        ).round(2)
                 
-                # 2. Renomeia as colunas das lojas
+                # 2. Renomeia as colunas de estoque para os nomes amigáveis
                 renomear_colunas = {
                     "ESTOQUE_LOJA_01": "Maricá",
                     "ESTOQUE_LOJA_02": "Barra",
@@ -75,12 +87,10 @@ def buscar_estoque_real():
                 }
                 df.rename(columns=renomear_colunas, inplace=True)
                 
-                # 3. Elimina itens onde TODAS as lojas e a Indústria estão com estoque zerado
+                # 3. Remove produtos com estoque totalmente zerado em todas as pontas
                 colunas_estoque = ["Indústria (IN)", "Maricá", "Barra", "Inoã", "Ceasa Irajá"]
                 cols_validas = [c for c in colunas_estoque if c in df.columns]
-                
                 if cols_validas:
-                    # Mantém apenas se tiver saldo em pelo menos um local
                     df = df[df[cols_validas].abs().sum(axis=1) > 0]
 
             return df
