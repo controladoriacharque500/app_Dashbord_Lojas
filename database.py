@@ -49,7 +49,23 @@ def buscar_estoque_real():
             df = pd.DataFrame(response.json())
             
             if not df.empty:
-                # Renomeia colunas para os nomes oficiais das lojas
+                # 1. Busca o histórico de vendas para saber o que é Produto Comercial Final
+                df_vendas = buscar_vendas_reais()
+                
+                if not df_vendas.empty:
+                    # Lista apenas IDs de produtos que tiveram alguma venda comercial
+                    produtos_vendaveis = df_vendas["IDPRODUTO"].unique()
+                    
+                    # FILTRO CRÍTICO: Mantém no estoque APENAS produtos que são vendidos
+                    df = df[df["IDPRODUTO"].isin(produtos_vendaveis)].copy()
+                    
+                    # Calcula Mínimo Semanal com base nas vendas reais
+                    media_vendas = df_vendas.groupby("IDPRODUTO")["QTD_VENDIDA_TOTAL"].sum() / 4.3
+                    df["MINIMO_RECOMENDADO"] = df["IDPRODUTO"].map(media_vendas).fillna(10.0).round(2)
+                else:
+                    df["MINIMO_RECOMENDADO"] = 10.0
+                
+                # 2. Renomeia as colunas das lojas
                 renomear_colunas = {
                     "ESTOQUE_LOJA_01": "Maricá",
                     "ESTOQUE_LOJA_02": "Barra",
@@ -59,16 +75,16 @@ def buscar_estoque_real():
                 }
                 df.rename(columns=renomear_colunas, inplace=True)
                 
-                # Cálculo do Mínimo Inteligente: Média semanal de vendas
-                # Exemplo: Venda total acumulada dividida por ~4.3 semanas (1 mês)
-                df_vendas = buscar_vendas_reais()
-                if not df_vendas.empty:
-                    media_vendas = df_vendas.groupby("IDPRODUTO")["QTD_VENDIDA_TOTAL"].sum() / 4.3
-                    df["MINIMO_RECOMENDADO"] = df["IDPRODUTO"].map(media_vendas).fillna(50.0).round(2)
-                else:
-                    df["MINIMO_RECOMENDADO"] = 50.0 # Valor padrão caso não haja histórico de vendas
-                    
+                # 3. Elimina itens onde TODAS as lojas e a Indústria estão com estoque zerado
+                colunas_estoque = ["Indústria (IN)", "Maricá", "Barra", "Inoã", "Ceasa Irajá"]
+                cols_validas = [c for c in colunas_estoque if c in df.columns]
+                
+                if cols_validas:
+                    # Mantém apenas se tiver saldo em pelo menos um local
+                    df = df[df[cols_validas].abs().sum(axis=1) > 0]
+
             return df
+            
         return pd.DataFrame()
     except Exception as e:
         st.error(f"Erro ao buscar Estoque: {e}")
