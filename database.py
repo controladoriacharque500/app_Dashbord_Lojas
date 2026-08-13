@@ -4,6 +4,15 @@ import requests
 
 API_URL = st.secrets.get("API_URL", "")
 
+# 🎨 PALETA DE CORES FIXA POR LOJA
+PALETA_CORES = {
+    "Indústria": "#1f77b4",     # Azul
+    "Maricá": "#ff7f0e",        # Laranja
+    "Barra": "#2ca02c",         # Verde
+    "Inoã": "#9467bd",          # Roxo
+    "Ceasa Irajá": "#d62728"    # Vermelho
+}
+
 NOMES_LOJAS = {
     "01": "Maricá", "1": "Maricá",
     "02": "Barra", "2": "Barra",
@@ -24,10 +33,14 @@ def buscar_vendas_reais(data_inicio='2026-01-01'):
         
         if response.status_code == 200:
             df = pd.DataFrame(response.json())
-            if not df.empty and "LOJA" in df.columns:
-                df["LOJA"] = df["LOJA"].astype(str).str.strip().map(
-                    lambda x: NOMES_LOJAS.get(x, f"Loja {x}")
-                )
+            if not df.empty:
+                if "LOJA" in df.columns:
+                    df["LOJA"] = df["LOJA"].astype(str).str.strip().map(
+                        lambda x: NOMES_LOJAS.get(x, f"Loja {x}")
+                    )
+                # Converte para datetime para permitir filtros avançados
+                if "DATA" in df.columns:
+                    df["DATA"] = pd.to_datetime(df["DATA"])
             return df
         return pd.DataFrame()
     except Exception as e:
