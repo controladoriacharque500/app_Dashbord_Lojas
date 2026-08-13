@@ -2,6 +2,16 @@ import streamlit as st
 import pandas as pd
 import requests
 
+NOMES_LOJAS = {
+    "01": "Lj Maricá",
+    "1": "Lj Maricá",
+    "02": "Lj Barra",
+    "2": "Lj Barra",
+    "03": "Lj Inoã",
+    "3": "Lj Inoã",
+    "04": "Lj Ceasa Irajá",
+    "4": "Lj Ceasa Irajá",
+    "IN": "Indústria"
 # Busca a URL definida nos Secrets do Streamlit
 API_URL = st.secrets.get("API_URL", "")
 
