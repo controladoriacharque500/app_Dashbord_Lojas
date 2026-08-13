@@ -2,6 +2,9 @@ import streamlit as st
 import pandas as pd
 import requests
 
+API_URL = st.secrets.get("API_URL", "")
+
+# Dicionário para renomear os códigos das filiais
 NOMES_LOJAS = {
     "01": "Lj Maricá",
     "1": "Lj Maricá",
@@ -12,13 +15,9 @@ NOMES_LOJAS = {
     "04": "Lj Ceasa Irajá",
     "4": "Lj Ceasa Irajá",
     "IN": "Indústria"
-# Busca a URL definida nos Secrets do Streamlit
-API_URL = st.secrets.get("API_URL", "")
+}
 
 def buscar_vendas_reais(data_inicio='2026-01-01'):
-    """
-    Busca os dados de vendas chamando a API local exposta pelo Ngrok.
-    """
     if not API_URL:
         st.error("URL da API não configurada nos Secrets (API_URL)!")
         return pd.DataFrame()
@@ -30,7 +29,14 @@ def buscar_vendas_reais(data_inicio='2026-01-01'):
         
         if response.status_code == 200:
             dados = response.json()
-            return pd.DataFrame(dados)
+            df = pd.DataFrame(dados)
+            
+            # Substitui os códigos/siglas pelos nomes amigáveis das lojas
+            if not df.empty and "LOJA" in df.columns:
+                df["LOJA"] = df["LOJA"].astype(str).str.strip().map(
+                    lambda x: NOMES_LOJAS.get(x, f"Loja {x}")
+                )
+            return df
         else:
             st.error(f"Erro de resposta da API (Vendas): Código HTTP {response.status_code}")
             return pd.DataFrame()
@@ -41,23 +47,20 @@ def buscar_vendas_reais(data_inicio='2026-01-01'):
 
 
 def buscar_estoque_real():
-    """
-    Busca os dados de estoque chamando a API local exposta pelo Ngrok.
-    """
     if not API_URL:
         st.error("URL da API não configurada nos Secrets (API_URL)!")
         return pd.DataFrame()
 
     try:
         headers = {"ngrok-skip-browser-warning": "69420"}
-        url = f"{API_URL}/estoque"  # Rota da API para estoque
+        url = f"{API_URL}/estoque"
         response = requests.get(url, headers=headers, timeout=15)
         
         if response.status_code == 200:
             dados = response.json()
             return pd.DataFrame(dados)
         else:
-            st.error(f"Erro de resposta da API (Estoque): Código HTTP {response.status_code}")
+            st.error(f"Erro de resposta da API (Estoque): Código HTTP {response.status_code} - Rota não encontrada no Servidor API local.")
             return pd.DataFrame()
             
     except Exception as e:
