@@ -201,12 +201,12 @@ if check_password():
                 hide_index=True
             )
 
-    # -------------------------------------------------------------
+   # -------------------------------------------------------------
     # PÁGINA 3: ALERTAS DE REPOSIÇÃO CRÍTICA
     # -------------------------------------------------------------
     elif page == "⚠️ Alertas de Reposição Crítica":
         st.title("⚠️ Central de Alertas e Reposição")
-        st.caption("Produtos com estoque em loja abaixo da média semanal de vendas (Nível de Segurança)")
+        st.caption("Produtos com estoque em loja abaixo da média semanal de vendas da própria filial")
 
         if df_inv.empty:
             st.warning("Sem dados de estoque para calcular alertas.")
@@ -227,17 +227,31 @@ if check_password():
 
             for tab, nome_loja in lojas:
                 with tab:
-                    if nome_loja in df_inv.columns:
-                        criticos = df_inv[df_inv[nome_loja] < df_inv["MINIMO_RECOMENDADO"]]
-                        st.warning(f"Existem **{len(criticos)}** produtos abaixo do nível de segurança em {nome_loja}.")
+                    col_minimo = f"MINIMO_{nome_loja}"
+                    
+                    if nome_loja in df_inv.columns and col_minimo in df_inv.columns:
+                        # Considera crítico APENAS o produto que vende na loja (mínimo > 0) 
+                        # e cujo estoque atual é menor que a média semanal daquela loja
+                        criticos = df_inv[
+                            (df_inv[col_minimo] > 0) & 
+                            (df_inv[nome_loja] < df_inv[col_minimo])
+                        ]
+                        
+                        st.warning(f"Existem **{len(criticos)}** produtos com reposição necessária em {nome_loja}.")
                         
                         for _, row in criticos.iterrows():
-                            with st.expander(f"⚠️ {row['PRODUTO']} (Atual: {row[nome_loja]} kg | Mínimo Semanal: {row['MINIMO_RECOMENDADO']} kg)"):
-                                st.write(f"**Estoque Disponível na Indústria:** `{row.get('Indústria (IN)', 0)} kg`")
-                                if row.get('Indústria (IN)', 0) >= (row['MINIMO_RECOMENDADO'] - row[nome_loja]):
-                                    st.success("✅ Indústria possui saldo suficiente para abastecimento!")
+                            qtd_atual = row[nome_loja]
+                            qtd_minima = row[col_minimo]
+                            estoque_ind = row.get('Indústria (IN)', 0)
+                            
+                            with st.expander(f"⚠️ {row['PRODUTO']} (Atual: {qtd_atual} kg | Mín. Semanal {nome_loja}: {qtd_minima} kg)"):
+                                st.write(f"**Estoque Disponível na Indústria (IN):** `{estoque_ind} kg`")
+                                
+                                necessidade = qtd_minima - qtd_atual
+                                if estoque_ind >= necessidade:
+                                    st.success(f"✅ Indústria possui saldo suficiente para abastecer ({necessidade:.2f} kg necessários)!")
                                 else:
-                                    st.error("❌ Atenção: Estoque na Indústria também está crítico!")
+                                    st.error(f"❌ Atenção: Saldo na Indústria é insuficiente para a necessidade de {necessidade:.2f} kg!")
                     else:
                         st.info(f"Sem dados de estoque para a loja {nome_loja}.")
 
