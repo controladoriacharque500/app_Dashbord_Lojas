@@ -182,24 +182,68 @@ if check_password():
                         }
                     )
 
-    # -------------------------------------------------------------
+   # -------------------------------------------------------------
     # PÁGINA 2: ESTOQUE LOJAS VS INDÚSTRIA
     # -------------------------------------------------------------
     elif page == "📦 Estoque Lojas vs. Indústria (IN)":
-        st.title("📦 Comparativo de Estoque: Lojas vs. Indústria (IN)")
-        st.caption("Verifique o saldo no Centro de Distribuição / Indústria (Filial IN) para abastecimento das lojas.")
+        st.title("📦 Consulta e Comparativo de Estoque")
+        st.caption("Visão geral dos saldos físicos na Indústria (IN) e nas Filiais")
 
         if df_inv.empty:
             st.warning("Sem dados de estoque disponíveis no momento.")
         else:
-            colunas_exibicao = ["IDPRODUTO", "PRODUTO", "Indústria (IN)", "Maricá", "Barra", "Inoã", "Ceasa Irajá", "MINIMO_RECOMENDADO"]
-            cols_presentes = [c for c in colunas_exibicao if c in df_inv.columns]
+            # 1. BARRA DE FILTRO E PESQUISA
+            col_busca, col_filtro = st.columns([2, 1])
             
+            with col_busca:
+                termo_busca = st.text_input("🔍 Buscar Produto por Nome ou Código:", "")
+            
+            # Aplica o filtro de busca se houver digitação
+            df_exibicao = df_inv.copy()
+            if termo_busca:
+                termo = termo_busca.lower()
+                df_exibicao = df_exibicao[
+                    df_exibicao["PRODUTO"].astype(str).str.lower().str.contains(termo) |
+                    df_exibicao["IDPRODUTO"].astype(str).str.contains(termo)
+                ]
+
+            # 2. DEFINIÇÃO DAS COLUNAS LIMPAS (Sem Mínimo Recomendado)
+            colunas_estoque = [
+                "IDPRODUTO", 
+                "PRODUTO", 
+                "Indústria (IN)", 
+                "Maricá", 
+                "Barra", 
+                "Inoã", 
+                "Ceasa Irajá"
+            ]
+            
+            # Filtra apenas colunas que existem no DataFrame
+            cols_finais = [c for c in colunas_estoque if c in df_exibicao.columns]
+
+            # 3. EXIBIÇÃO DA TABELA
             st.dataframe(
-                df_inv[cols_presentes],
+                df_exibicao[cols_finais],
                 use_container_width=True,
                 hide_index=True
             )
+
+            # 4. CARD DETALHADO CASO ENCONTRE UM ÚNICO PRODUTO OU SEJA SELECIONADO
+            st.markdown("---")
+            st.subheader("🔍 Detalhamento por Item")
+            
+            lista_produtos = df_inv["PRODUTO"].unique().tolist()
+            produto_sel = st.selectbox("Selecione um Produto para ver os detalhes completos:", ["Todos"] + lista_produtos)
+
+            if produto_sel != "Todos":
+                item_dados = df_inv[df_inv["PRODUTO"] == produto_sel].iloc[0]
+                
+                c1, c2, c3, c4, c5 = st.columns(5)
+                c1.metric("🏭 Indústria (IN)", f"{item_dados.get('Indústria (IN)', 0):,.2f} kg")
+                c2.metric("🏪 Maricá", f"{item_dados.get('Maricá', 0):,.2f} kg")
+                c3.metric("🏪 Barra", f"{item_dados.get('Barra', 0):,.2f} kg")
+                c4.metric("🏪 Inoã", f"{item_dados.get('Inoã', 0):,.2f} kg")
+                c5.metric("🏪 Ceasa Irajá", f"{item_dados.get('Ceasa Irajá', 0):,.2f} kg")
 
    # -------------------------------------------------------------
     # PÁGINA 3: ALERTAS DE REPOSIÇÃO CRÍTICA
