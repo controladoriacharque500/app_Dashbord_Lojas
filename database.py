@@ -72,9 +72,7 @@ def buscar_estoque_real():
             
             if not df.empty:
                 # 1. Busca histórico de vendas para saber o giro individual por LOJA
-                # Em vez de buscar desde 2026-01-01, busca os últimos 30 dias dinamicamente
-                data_30_dias = (pd.Timestamp.now() - pd.Timedelta(days=30)).strftime('%Y-%m-%d')
-                df_vendas = buscar_vendas_reais(data_inicio=data_30_dias)
+                df_vendas = buscar_vendas_reais()
                 
                 if not df_vendas.empty:
                     # Filtra apenas produtos vendáveis
@@ -83,13 +81,12 @@ def buscar_estoque_real():
                     
                     # Média de vendas semanais POR LOJA E POR PRODUTO
                     # (Dividido por 4.3 para estimar 1 semana a partir do histórico mensal)
+                    data_minima = df_vendas["DATA"].min()
+                    data_hoje = pd.Timestamp.now()
+                    dias_decorridos = (data_hoje - data_minima).days
                     #calculo antigo vendas_por_loja = df_vendas.groupby(["IDPRODUTO", "LOJA"])["QTD_VENDIDA_TOTAL"].sum() / 4.3
-                    # 1. Calcula o total de dias presentes no relatório de vendas trazido da API
-                    dias_totais = (df_vendas["DATA"].max() - df_vendas["DATA"].min()).days
-                    
-                    # 2. Converte para semanas (mínimo de 1 semana para evitar divisão por zero)
-                    semanas_decorridas = max(dias_totais / 7.0, 1.0)
-                    
+                    # 2. Converte esses dias para semanas reais (garantindo no mínimo 1 semana)
+                    semanas_decorridas = max(dias_decorridos / 7.0, 1.0)
                     # 3. Divide o acumulado pelo número REAL de semanas decorridas
                     vendas_por_loja = df_vendas.groupby(["IDPRODUTO", "LOJA"])["QTD_VENDIDA_TOTAL"].sum() / semanas_decorridas
                     # Cria colunas de mínimo individual para cada loja
