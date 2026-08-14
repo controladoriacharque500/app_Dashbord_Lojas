@@ -83,8 +83,15 @@ def buscar_estoque_real():
                     
                     # Média de vendas semanais POR LOJA E POR PRODUTO
                     # (Dividido por 4.3 para estimar 1 semana a partir do histórico mensal)
-                    vendas_por_loja = df_vendas.groupby(["IDPRODUTO", "LOJA"])["QTD_VENDIDA_TOTAL"].sum() / 4.3
+                    #calculo antigo vendas_por_loja = df_vendas.groupby(["IDPRODUTO", "LOJA"])["QTD_VENDIDA_TOTAL"].sum() / 4.3
+                    # 1. Calcula o total de dias presentes no relatório de vendas trazido da API
+                    dias_totais = (df_vendas["DATA"].max() - df_vendas["DATA"].min()).days
                     
+                    # 2. Converte para semanas (mínimo de 1 semana para evitar divisão por zero)
+                    semanas_decorridas = max(dias_totais / 7.0, 1.0)
+                    
+                    # 3. Divide o acumulado pelo número REAL de semanas decorridas
+                    vendas_por_loja = df_vendas.groupby(["IDPRODUTO", "LOJA"])["QTD_VENDIDA_TOTAL"].sum() / semanas_decorridas
                     # Cria colunas de mínimo individual para cada loja
                     # Mapeia o mínimo específico da filial (ex: MINIMO_Maricá, MINIMO_Barra, etc.)
                     lojas_map = {
