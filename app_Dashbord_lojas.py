@@ -349,7 +349,6 @@ if check_password():
 
                         if not df_neg.empty:
                             with st.expander(f"🔴 {nome_loja} — {len(df_neg)} produto(s) com estoque negativo"):
-                                # Define colunas exibidas garantindo o IDPRODUTO se existir
                                 cols_neg = ["IDPRODUTO", "PRODUTO", nome_loja] if "IDPRODUTO" in df_neg.columns else ["PRODUTO", nome_loja]
                                 
                                 st.dataframe(
@@ -369,6 +368,14 @@ if check_password():
             # ABA 2: ALERTAS DE REPOSIÇÃO CRÍTICA
             # =========================================================
             with tab_reposicao:
+                # Campo de Busca Exclusivo para Reposição Crítica
+                busca_reposicao = st.text_input(
+                    "🔍 Filtrar Alertas por Produto ou ID:",
+                    value="",
+                    placeholder="Digite o código ou nome do produto para filtrar em todas as lojas...",
+                    key="busca_reposicao_critica"
+                )
+
                 tab1, tab2, tab3, tab4 = st.tabs([
                     "🔴 Maricá",
                     "🔴 Barra",
@@ -388,12 +395,27 @@ if check_password():
                         col_minimo = f"MINIMO_{nome_loja}"
 
                         if nome_loja in df_inv.columns and col_minimo in df_inv.columns:
-                            # Filtra estoque < mínimo E garante que estoque seja >= 0
+                            # 1. Aplica a regra de reposição crítica
                             criticos = df_inv[
                                 (df_inv[col_minimo] > 0) & 
                                 (df_inv[nome_loja] < df_inv[col_minimo]) &
                                 (df_inv[nome_loja] >= 0)
-                            ]
+                            ].copy()
+
+                            # 2. Aplica o filtro de busca por Nome ou ID se houver texto digitado
+                            if busca_reposicao.strip():
+                                termo = busca_reposicao.strip().lower()
+                                
+                                # Verifica se IDPRODUTO existe para filtrar por ele também
+                                if "IDPRODUTO" in criticos.columns:
+                                    criticos = criticos[
+                                        criticos["PRODUTO"].astype(str).str.lower().str.contains(termo) |
+                                        criticos["IDPRODUTO"].astype(str).str.lower().str.contains(termo)
+                                    ]
+                                else:
+                                    criticos = criticos[
+                                        criticos["PRODUTO"].astype(str).str.lower().str.contains(termo)
+                                    ]
 
                             st.warning(f"Existem **{len(criticos)}** produtos com reposição necessária em {nome_loja}.")
 
@@ -403,7 +425,6 @@ if check_password():
                                 estoque_ind = row.get('Indústria (IN)', 0)
                                 cod_prod = row.get('IDPRODUTO', '')
 
-                                # Exibe o Cód. do Produto logo no início do título do expander
                                 rotulo_cod = f"[{cod_prod}] " if cod_prod else ""
                                 
                                 with st.expander(f"⚠️ {rotulo_cod}{row['PRODUTO']} (Atual: {formatar_br(qtd_atual, sufixo=' kg')} | Mín. Semanal {nome_loja}: {formatar_br(qtd_minima, sufixo=' kg')})"):
