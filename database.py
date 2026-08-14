@@ -21,7 +21,7 @@ NOMES_LOJAS = {
     "IN": "Indústria"
 }
 
-def buscar_vendas_reais(data_inicio='2025-01-01'):
+def buscar_vendas_reais(data_inicio='2026-01-01'):
     if not API_URL:
         st.error("URL da API não configurada!")
         return pd.DataFrame()
