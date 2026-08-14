@@ -72,7 +72,9 @@ def buscar_estoque_real():
             
             if not df.empty:
                 # 1. Busca histórico de vendas para saber o giro individual por LOJA
-                df_vendas = buscar_vendas_reais()
+                # Em vez de buscar desde 2026-01-01, busca os últimos 30 dias dinamicamente
+                data_30_dias = (pd.Timestamp.now() - pd.Timedelta(days=30)).strftime('%Y-%m-%d')
+                df_vendas = buscar_vendas_reais(data_inicio=data_30_dias)
                 
                 if not df_vendas.empty:
                     # Filtra apenas produtos vendáveis
