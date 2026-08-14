@@ -317,9 +317,6 @@ if check_password():
                 c4.metric("🏪 Inoã", formatar_br(item_dados.get('Inoã', 0), sufixo=" kg"))
                 c5.metric("🏪 Ceasa Irajá", formatar_br(item_dados.get('Ceasa Irajá', 0), sufixo=" kg"))
 
-    # -------------------------------------------------------------
-    # PÁGINA 3: ALERTAS DE REPOSIÇÃO CRÍTICA
-    # -------------------------------------------------------------
    # -------------------------------------------------------------
     # PÁGINA 3: ALERTAS DE REPOSIÇÃO CRÍTICA
     # -------------------------------------------------------------
@@ -352,10 +349,14 @@ if check_password():
 
                         if not df_neg.empty:
                             with st.expander(f"🔴 {nome_loja} — {len(df_neg)} produto(s) com estoque negativo"):
+                                # Define colunas exibidas garantindo o IDPRODUTO se existir
+                                cols_neg = ["IDPRODUTO", "PRODUTO", nome_loja] if "IDPRODUTO" in df_neg.columns else ["PRODUTO", nome_loja]
+                                
                                 st.dataframe(
-                                    df_neg[["PRODUTO", nome_loja]],
+                                    df_neg[cols_neg],
                                     use_container_width=True,
                                     column_config={
+                                        "IDPRODUTO": st.column_config.TextColumn("Cód. Item"),
                                         "PRODUTO": st.column_config.TextColumn("Descrição do Produto"),
                                         nome_loja: st.column_config.NumberColumn("Estoque em Sistema", format="%.2f kg")
                                     },
@@ -400,8 +401,12 @@ if check_password():
                                 qtd_atual = row[nome_loja]
                                 qtd_minima = row[col_minimo]
                                 estoque_ind = row.get('Indústria (IN)', 0)
+                                cod_prod = row.get('IDPRODUTO', '')
 
-                                with st.expander(f"⚠️ {row['PRODUTO']} (Atual: {formatar_br(qtd_atual, sufixo=' kg')} | Mín. Semanal {nome_loja}: {formatar_br(qtd_minima, sufixo=' kg')})"):
+                                # Exibe o Cód. do Produto logo no início do título do expander
+                                rotulo_cod = f"[{cod_prod}] " if cod_prod else ""
+                                
+                                with st.expander(f"⚠️ {rotulo_cod}{row['PRODUTO']} (Atual: {formatar_br(qtd_atual, sufixo=' kg')} | Mín. Semanal {nome_loja}: {formatar_br(qtd_minima, sufixo=' kg')})"):
                                     st.write(f"**Estoque Disponível na Indústria (IN):** `{formatar_br(estoque_ind, sufixo=' kg')}`")
 
                                     necessidade = qtd_minima - qtd_atual
